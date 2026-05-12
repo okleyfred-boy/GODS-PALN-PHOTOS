@@ -6,7 +6,7 @@ export default function Navigation() {
   const { user, login, logout, isAuthenticated } = useAuth();
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-[100] border-b border-sophisticated-border/30 bg-sophisticated-black/90 backdrop-blur-md px-10 h-20 flex items-center justify-between">
+    <nav id="main-navigation" className="fixed top-0 left-0 w-full z-[9999] border-b border-sophisticated-border/30 bg-sophisticated-black/95 backdrop-blur-xl px-10 h-20 flex items-center justify-between">
       <div className="flex items-center gap-12">
         <h1 className="text-xl font-serif tracking-[0.3em] uppercase text-sophisticated-text italic font-light">
           Aeterna
@@ -30,32 +30,26 @@ export default function Navigation() {
               </div>
             </div>
             
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                logout();
-              }}
-              className="flex items-center gap-2 text-sophisticated-text/40 hover:text-red-400 transition-colors text-[10px] uppercase tracking-[0.2em] font-bold cursor-pointer pointer-events-auto bg-transparent border-none py-2"
+            <motion.button
+              id="logout-button"
+              whileTap={{ scale: 0.95 }}
+              onClick={logout}
+              className="flex items-center gap-2 text-sophisticated-text/40 hover:text-red-400 transition-colors text-[10px] uppercase tracking-[0.2em] font-bold cursor-pointer bg-transparent border-none py-2"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">Sign Out</span>
-            </button>
+            </motion.button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              login();
-            }}
-            className="group flex items-center gap-3 px-6 py-2.5 border border-gold/30 hover:border-gold hover:bg-gold/5 transition-all text-[10px] uppercase tracking-[0.3em] font-bold text-gold cursor-pointer pointer-events-auto bg-transparent"
+          <motion.button
+            id="login-button"
+            whileTap={{ scale: 0.95 }}
+            onClick={login}
+            className="group flex items-center gap-3 px-6 py-2.5 border border-gold/30 hover:border-gold hover:bg-gold/5 transition-all text-[10px] uppercase tracking-[0.3em] font-bold text-gold cursor-pointer bg-transparent"
           >
             <LogIn size={14} className="group-hover:translate-x-0.5 transition-transform" />
             Sign In
-          </button>
+          </motion.button>
         )}
       </div>
     </nav>
