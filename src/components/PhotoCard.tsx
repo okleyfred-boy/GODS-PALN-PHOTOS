@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Trash2, Maximize2, Share2 } from 'lucide-react';
+import { Trash2, Maximize2, Share2, Lock } from 'lucide-react';
 import { type Photo } from '../lib/db';
+import { useAuth } from '../lib/AuthContext';
 
 interface PhotoCardProps {
   photo: Photo;
@@ -10,6 +11,7 @@ interface PhotoCardProps {
 }
 
 export default function PhotoCard({ photo, onDelete, onView }: PhotoCardProps) {
+  const { isAuthenticated } = useAuth();
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (navigator.share) {
@@ -78,10 +80,19 @@ export default function PhotoCard({ photo, onDelete, onView }: PhotoCardProps) {
             Share
           </button>
           <button 
-            onClick={() => photo.id && onDelete(photo.id)}
-            className="flex items-center gap-2 text-red-500/60 text-[10px] uppercase tracking-[0.25em] font-bold hover:text-red-500 transition-all ml-auto"
+            onClick={() => {
+              if (isAuthenticated) {
+                photo.id && onDelete(photo.id);
+              } else {
+                alert('Authentication required to remove elements from the archives.');
+              }
+            }}
+            className={`flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] font-bold transition-all ml-auto ${
+              isAuthenticated ? 'text-red-500/60 hover:text-red-500' : 'text-sophisticated-text/20 cursor-not-allowed'
+            }`}
+            title={isAuthenticated ? 'Remove' : 'Authentication Required'}
           >
-            Remove
+            {isAuthenticated ? 'Remove' : <Lock size={10} />}
           </button>
         </div>
       </div>

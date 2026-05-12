@@ -5,17 +5,20 @@
 
 import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, seedDatabase, type Photo } from './lib/db';
 import AlbumHeader from './components/AlbumHeader';
 import PhotoGrid from './components/PhotoGrid';
 import Lightbox from './components/Lightbox';
 import UploadModal from './components/UploadModal';
+import Navigation from './components/Navigation';
+import { useAuth } from './lib/AuthContext';
 
 const CATEGORIES = ['All', 'Moments', 'Portraits', 'Lifestyle', 'Travel', 'Scenic'];
 
 export default function App() {
+  const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState('All');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
@@ -33,14 +36,27 @@ export default function App() {
   }, []);
 
   const handleDelete = async (id: number) => {
+    if (!isAuthenticated) {
+      alert('Authentication required to modify the archives.');
+      return;
+    }
     await db.photos.delete(id);
   };
 
   const handleClearAll = async () => {
+    if (!isAuthenticated) return;
     await db.photos.clear();
     // Set a flag so seedDatabase knows not to run again
     localStorage.setItem('archived_once', 'true');
     setIsClearing(false);
+  };
+
+  const handleToggleUpload = () => {
+    if (isAuthenticated) {
+      setIsUploadOpen(true);
+    } else {
+      alert('Authentication required to capture new moments.');
+    }
   };
 
   const filteredPhotos = photos.filter(p => {
@@ -52,11 +68,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-40">
+      <Navigation />
       <AlbumHeader />
 
       <main className="max-w-7xl mx-auto px-6">
         {/* Gallery Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-20 gap-8 border-y border-sophisticated-border py-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-20 gap-8 border-y border-sophisticated-border/40 py-10">
           <div className="flex items-center gap-2 overflow-x-auto pb-4 md:pb-0 scrollbar-hide no-scrollbar">
             {CATEGORIES.map((cat) => (
               <button
@@ -64,7 +81,7 @@ export default function App() {
                 onClick={() => setActiveCategory(cat)}
                 className={`whitespace-nowrap px-8 py-2 text-[10px] uppercase tracking-[0.3em] font-bold transition-all ${
                   activeCategory === cat 
-                    ? 'text-gold border-b-2 border-gold' 
+                    ? 'text-gold border-b-2 border-gold pb-1.5' 
                     : 'text-sophisticated-text/30 hover:text-sophisticated-text'
                 }`}
               >
@@ -74,7 +91,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-6">
-            {photos.length > 0 && (
+            {isAuthenticated && photos.length > 0 && (
               <div className="flex items-center gap-2">
                 <AnimatePresence>
                   {isCleaning && (
@@ -119,7 +136,7 @@ export default function App() {
               </div>
             )}
 
-            {photos.length > 0 && (
+            {isAuthenticated && photos.length > 0 && (
               <div className="flex items-center gap-2">
                 <AnimatePresence>
                   {isClearing && (
@@ -161,10 +178,13 @@ export default function App() {
             </div>
             
             <button
-              onClick={() => setIsUploadOpen(true)}
-              className="group flex items-center justify-center w-12 h-12 bg-sophisticated-gray border border-sophisticated-border rounded-full hover:bg-gold hover:text-sophisticated-black transition-all transform hover:rotate-90 hover:border-gold shadow-2xl"
+              onClick={handleToggleUpload}
+              className={`group flex items-center justify-center w-12 h-12 bg-sophisticated-gray border border-sophisticated-border rounded-full transition-all transform hover:rotate-90 shadow-2xl ${
+                isAuthenticated ? 'hover:bg-gold hover:text-sophisticated-black hover:border-gold' : 'opacity-50 cursor-not-allowed'
+              }`}
+              title={isAuthenticated ? 'Capture Moment' : 'Authentication Required'}
             >
-              <Plus size={18} />
+              {isAuthenticated ? <Plus size={18} /> : <Lock size={16} className="text-sophisticated-text/20" />}
             </button>
           </div>
         </div>
