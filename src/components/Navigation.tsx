@@ -32,11 +32,12 @@ export default function Navigation() {
             
             <button
               type="button"
-              onClick={() => {
-                console.log('Logout clicked');
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 logout();
               }}
-              className="flex items-center gap-2 text-sophisticated-text/40 hover:text-red-400 transition-colors text-[10px] uppercase tracking-[0.2em] font-bold cursor-pointer"
+              className="flex items-center gap-2 text-sophisticated-text/40 hover:text-red-400 transition-colors text-[10px] uppercase tracking-[0.2em] font-bold cursor-pointer pointer-events-auto bg-transparent border-none py-2"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">Sign Out</span>
@@ -45,11 +46,12 @@ export default function Navigation() {
         ) : (
           <button
             type="button"
-            onClick={() => {
-              console.log('Login clicked');
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               login();
             }}
-            className="group flex items-center gap-3 px-6 py-2.5 border border-gold/30 hover:border-gold hover:bg-gold/5 transition-all text-[10px] uppercase tracking-[0.3em] font-bold text-gold cursor-pointer"
+            className="group flex items-center gap-3 px-6 py-2.5 border border-gold/30 hover:border-gold hover:bg-gold/5 transition-all text-[10px] uppercase tracking-[0.3em] font-bold text-gold cursor-pointer pointer-events-auto bg-transparent"
           >
             <LogIn size={14} className="group-hover:translate-x-0.5 transition-transform" />
             Sign In

@@ -67,7 +67,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen pb-40">
+    <div className="min-h-screen pb-40 pt-20">
       <Navigation />
       <AlbumHeader />
 

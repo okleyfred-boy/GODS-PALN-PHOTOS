@@ -31,26 +31,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = () => {
     try {
+      // Simulate a small delay for better UX
       const mockUser = {
         name: 'Curator',
         email: 'curator@aeterna.io',
         avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=Curator&backgroundColor=c5a059'
       };
+      
       setUser(mockUser);
-      localStorage.setItem('aeterna_auth', JSON.stringify(mockUser));
-      console.log('User signed in:', mockUser.name);
+      
+      try {
+        localStorage.setItem('aeterna_auth', JSON.stringify(mockUser));
+      } catch (storageErr) {
+        console.warn('Persistent storage failed, session will be memory-only:', storageErr);
+      }
+      
+      console.log('Login successful');
     } catch (e) {
-      console.error('Login storage failed:', e);
+      console.error('Login failed:', e);
     }
   };
 
   const logout = () => {
     try {
       setUser(null);
-      localStorage.removeItem('aeterna_auth');
-      console.log('User signed out');
+      try {
+        localStorage.removeItem('aeterna_auth');
+      } catch (storageErr) {
+        // Ignore storage errors on logout
+      }
+      console.log('Logout successful');
     } catch (e) {
-      console.error('Logout storage failed:', e);
+      console.error('Logout failed:', e);
     }
   };
 
