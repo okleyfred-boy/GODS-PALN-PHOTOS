@@ -6,7 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 
 interface PhotoCardProps {
   photo: Photo;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   onView: (photo: Photo) => void;
 }
 
@@ -17,7 +17,7 @@ export default function PhotoCard({ photo, onDelete, onView }: PhotoCardProps) {
     if (navigator.share) {
       try {
         // Convert data URL to blob
-        const res = await fetch(photo.dataUrl);
+        const res = await fetch(photo.url);
         const blob = await res.blob();
         const file = new File([blob], `${photo.title.replace(/\s+/g, '_')}.jpg`, { type: 'image/jpeg' });
 
@@ -54,7 +54,7 @@ export default function PhotoCard({ photo, onDelete, onView }: PhotoCardProps) {
       className="group relative bg-sophisticated-gray border border-sophisticated-border cinematic-shadow rounded-sm overflow-hidden aspect-[3/4]"
     >
       <img
-        src={photo.dataUrl}
+        src={photo.url}
         alt={photo.title}
         className="w-full h-full object-cover sepia-hover cursor-pointer"
         referrerPolicy="no-referrer"

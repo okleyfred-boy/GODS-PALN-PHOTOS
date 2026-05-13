@@ -13,7 +13,7 @@ export default function Lightbox({ photo, onClose }: LightboxProps) {
   const handleShare = async () => {
     if (navigator.share) {
       try {
-        const res = await fetch(photo.dataUrl);
+        const res = await fetch(photo.url);
         const blob = await res.blob();
         const file = new File([blob], `${photo.title.replace(/\s+/g, '_')}.jpg`, { type: 'image/jpeg' });
 
@@ -41,7 +41,7 @@ export default function Lightbox({ photo, onClose }: LightboxProps) {
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = photo.dataUrl;
+    link.href = photo.url;
     link.download = `${photo.title.replace(/\s+/g, '_')}.jpg`;
     document.body.appendChild(link);
     link.click();
@@ -74,7 +74,7 @@ export default function Lightbox({ photo, onClose }: LightboxProps) {
         >
           <div className="flex-[3] bg-black/40 flex items-center justify-center overflow-hidden relative group">
             <img
-              src={photo.dataUrl}
+              src={photo.url}
               alt={photo.title}
               className="max-w-full max-h-full object-contain"
               referrerPolicy="no-referrer"
@@ -106,7 +106,7 @@ export default function Lightbox({ photo, onClose }: LightboxProps) {
                 <div>
                   <label className="block text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 mb-1 font-bold">Archived On</label>
                   <span className="text-[11px] text-sophisticated-text/50 font-medium tracking-wider">
-                    {new Date(photo.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                    {new Date(photo.createdAt?.toMillis?.() || photo.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex gap-4">

@@ -1,13 +1,18 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Search, Filter, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, seedDatabase, type Photo } from './lib/db';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  deleteDoc, 
+  doc, 
+  getDocs,
+  writeBatch,
+  addDoc
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './lib/db';
 import AlbumHeader from './components/AlbumHeader';
 import PhotoGrid from './components/PhotoGrid';
 import Lightbox from './components/Lightbox';
@@ -15,40 +20,129 @@ import UploadModal from './components/UploadModal';
 import Navigation from './components/Navigation';
 import { useAuth } from './lib/AuthContext';
 
+export interface Photo {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  url: string;
+  createdAt: any;
+  userId: string;
+  albumId: string;
+}
+
 const CATEGORIES = ['All', 'Moments', 'Portraits', 'Lifestyle', 'Travel', 'Scenic'];
 
 export default function App() {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [activeCategory, setActiveCategory] = useState('All');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [isClearing, setIsClearing] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [albumId, setAlbumId] = useState<string | null>(null);
 
-  // Fetch photos from DB
-  const photos = useLiveQuery(() => db.photos.reverse().toArray(), []) || [];
-
-  // Seed DB on mount
+  // Fetch or find default album
   useEffect(() => {
-    seedDatabase();
-  }, []);
-
-  const handleDelete = async (id: number) => {
-    if (!isAuthenticated) {
-      alert('Authentication required to modify the archives.');
+    if (!isAuthenticated || !user) {
+      setPhotos([]);
+      setAlbumId(null);
       return;
     }
-    await db.photos.delete(id);
+
+    let isMounted = true;
+    const findAlbum = async () => {
+      const albumPath = 'albums';
+      try {
+        const q = query(
+          collection(db, albumPath), 
+          where('ownerId', '==', user.uid),
+          where('title', '==', 'Default Album')
+        );
+        const snap = await getDocs(q);
+        if (!isMounted) return;
+
+        if (!snap.empty) {
+          setAlbumId(snap.docs[0].id);
+        } else {
+          // Create default album immediately
+          const newAlbum = await addDoc(collection(db, albumPath), {
+            title: 'Default Album',
+            ownerId: user.uid,
+            createdAt: Date.now()
+          });
+          if (isMounted) setAlbumId(newAlbum.id);
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, albumPath);
+      }
+    };
+
+    findAlbum();
+    return () => { isMounted = false; };
+  }, [user, isAuthenticated]);
+
+  // Subscribe to photos
+  useEffect(() => {
+    if (!albumId || !user) return;
+
+    const photoPath = 'photos';
+    const q = query(
+      collection(db, photoPath),
+      where('userId', '==', user.uid),
+      where('albumId', '==', albumId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const photoData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Photo[];
+      
+      // Sort in-memory as requested to avoid manual indexes requirement
+      const sorted = photoData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || a.createdAt || 0;
+        const timeB = b.createdAt?.toMillis?.() || b.createdAt || 0;
+        return timeB - timeA;
+      });
+      
+      setPhotos(sorted);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, photoPath);
+    });
+
+    return () => unsubscribe();
+  }, [albumId, user]);
+
+  const handleDelete = async (id: string) => {
+    if (!isAuthenticated) return;
+    const photoPath = `photos/${id}`;
+    try {
+      await deleteDoc(doc(db, 'photos', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, photoPath);
+    }
   };
 
   const handleClearAll = async () => {
-    if (!isAuthenticated) return;
-    await db.photos.clear();
-    // Set a flag so seedDatabase knows not to run again
-    localStorage.setItem('archived_once', 'true');
-    setIsClearing(false);
+    if (!isAuthenticated || !user || !albumId) return;
+    const photoPath = 'photos';
+    try {
+      const q = query(
+        collection(db, photoPath),
+        where('userId', '==', user.uid),
+        where('albumId', '==', albumId)
+      );
+      const snap = await getDocs(q);
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      setIsClearing(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, photoPath);
+    }
   };
 
   const handleToggleUpload = () => {
@@ -65,6 +159,18 @@ export default function App() {
                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-sophisticated-black flex items-center justify-center">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          className="w-12 h-12 border-2 border-gold/10 border-t-gold rounded-full"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-40 pt-20">
@@ -101,17 +207,19 @@ export default function App() {
                       exit={{ opacity: 0, x: 10 }}
                       onClick={async () => {
                         const seen = new Set();
-                        const duplicates: number[] = [];
+                        const duplicates: string[] = [];
                         photos.forEach(p => {
-                          if (seen.has(p.dataUrl)) {
-                            if (p.id) duplicates.push(p.id);
+                          if (seen.has(p.url)) {
+                            duplicates.push(p.id);
                           } else {
-                            seen.add(p.dataUrl);
+                            seen.add(p.url);
                           }
                         });
 
                         if (duplicates.length > 0) {
-                          await db.photos.bulkDelete(duplicates);
+                          const batch = writeBatch(db);
+                          duplicates.forEach(id => batch.delete(doc(db, 'photos', id)));
+                          await batch.commit();
                         }
                         setIsCleaning(false);
                       }}
@@ -199,7 +307,20 @@ export default function App() {
 
         {/* Gallery Content */}
         <AnimatePresence mode="wait">
-          {filteredPhotos.length > 0 ? (
+          {!isAuthenticated ? (
+            <div className="py-40 text-center">
+               <span className="inline-block p-8 mb-6 border border-gold/20 rounded-full">
+                <Lock size={32} className="text-gold/40" />
+              </span>
+              <p className="text-sophisticated-text/20 italic font-serif text-xl tracking-tight mb-4">The archives are locked to non-curators.</p>
+              <button 
+                onClick={() => { /* Handled in Navigation but we can repeat logic or use a ref */ }}
+                className="text-[10px] uppercase tracking-widest text-gold border-b border-gold/40 pb-1"
+              >
+                Identification Required
+              </button>
+            </div>
+          ) : filteredPhotos.length > 0 ? (
             <motion.div
               key={activeCategory + searchQuery}
               initial={{ opacity: 0, y: 30 }}
@@ -247,7 +368,7 @@ export default function App() {
       <UploadModal 
         isOpen={isUploadOpen} 
         onClose={() => setIsUploadOpen(false)} 
-        onSuccess={() => {}} // useLiveQuery handles updates
+        onSuccess={() => {}} // Snapshot handles updates
       />
     </div>
   );

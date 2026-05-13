@@ -5,7 +5,7 @@ import PhotoCard from './PhotoCard';
 interface PhotoGridProps {
   photos: Photo[];
   activeCategory: string;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   onView: (photo: Photo) => void;
 }
 

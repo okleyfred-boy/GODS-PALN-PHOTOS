@@ -1,65 +1,65 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  type User 
+} from 'firebase/auth';
+import { auth } from './db';
 
-interface User {
+interface AuthUser {
+  uid: string;
   name: string;
   email: string;
   avatar: string;
 }
 
 interface AuthContextType {
-  user: User | null;
-  login: () => void;
-  logout: () => void;
+  user: AuthUser | null;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('aeterna_auth');
-      if (stored) {
-        setUser(JSON.parse(stored));
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName || 'Curator',
+          email: firebaseUser.email || '',
+          avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${firebaseUser.displayName}&backgroundColor=c5a059`
+        });
+      } else {
+        setUser(null);
       }
-    } catch (e) {
-      console.warn('LocalStorage access failed:', e);
-    }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const login = () => {
+  const login = async () => {
+    const provider = new GoogleAuthProvider();
     try {
-      // Simulate a small delay for better UX
-      const mockUser = {
-        name: 'Curator',
-        email: 'curator@aeterna.io',
-        avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=Curator&backgroundColor=c5a059'
-      };
-      
-      setUser(mockUser);
-      
-      try {
-        localStorage.setItem('aeterna_auth', JSON.stringify(mockUser));
-      } catch (storageErr) {
-        console.warn('Persistent storage failed, session will be memory-only:', storageErr);
-      }
-      
+      await signInWithPopup(auth, provider);
       console.log('Login successful');
     } catch (e) {
       console.error('Login failed:', e);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     try {
-      setUser(null);
-      try {
-        localStorage.removeItem('aeterna_auth');
-      } catch (storageErr) {
-        // Ignore storage errors on logout
-      }
+      await signOut(auth);
       console.log('Logout successful');
     } catch (e) {
       console.error('Logout failed:', e);
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

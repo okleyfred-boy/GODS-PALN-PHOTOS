@@ -1,58 +1,86 @@
-import Dexie, { type Table } from 'dexie';
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-export interface Photo {
-  id?: number;
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth();
+
+export interface Album {
+  id?: string;
   title: string;
-  description: string;
-  category: string;
-  dataUrl: string; // Base64 of the image
+  ownerId: string;
   createdAt: number;
 }
 
-export class PhotoAlbumDB extends Dexie {
-  photos!: Table<Photo>;
+export interface Photo {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  url: string; // Base64 of the image
+  userId: string;
+  albumId: string;
+  createdAt: any;
+}
 
-  constructor() {
-    super('PhotoAlbumDB');
-    this.version(1).stores({
-      photos: '++id, category, createdAt'
-    });
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
   }
 }
 
-export const db = new PhotoAlbumDB();
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
-// Initial data seeder if empty
-export const seedDatabase = async () => {
-  const hasArchivedOnce = localStorage.getItem('archived_once');
-  if (hasArchivedOnce) return;
-
-  const count = await db.photos.count();
-  if (count === 0) {
-    const initialPhotos: Photo[] = [
-      {
-        title: "Portrait of Stillness",
-        description: "A moment of reflection captured in soft golden light.",
-        category: "Portraits",
-        dataUrl: "https://picsum.photos/seed/portrait1/1200/1600",
-        createdAt: Date.now() - 100000
-      },
-      {
-        title: "Morning Ritual",
-        description: "The quiet beauty of a new day and a fresh brew.",
-        category: "Lifestyle",
-        dataUrl: "https://picsum.photos/seed/coffee/1600/1200",
-        createdAt: Date.now() - 200000
-      },
-      {
-        title: "Ethereal Coast",
-        description: "Where the mist meets the rugged edges of the world.",
-        category: "Scenic",
-        dataUrl: "https://picsum.photos/seed/coast/1600/900",
-        createdAt: Date.now() - 300000
-      }
-    ];
-    await db.photos.bulkAdd(initialPhotos);
-    localStorage.setItem('archived_once', 'true');
+// Connection test
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration.");
+    }
   }
-};
+}
+testConnection();

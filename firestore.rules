@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. ALBUMS
+    match /albums/{albumId} {
+      function isValidAlbum(data) {
+        return data.title is string && data.title.size() <= 100
+            && data.ownerId == request.auth.uid
+            && data.createdAt is number;
+      }
+
+      allow create: if isOwner(incoming().ownerId) && isValidAlbum(incoming());
+      allow read: if isOwner(existing().ownerId);
+      allow update: if isOwner(existing().ownerId) 
+                   && isOwner(incoming().ownerId)
+                   && isValidAlbum(incoming())
+                   && incoming().diff(existing()).affectedKeys().hasOnly(['title']);
+      allow delete: if isOwner(existing().ownerId);
+    }
+
+    // 2. PHOTOS
+    match /photos/{photoId} {
+      function isValidPhoto(data) {
+        return data.title is string && data.title.size() <= 100
+            && data.url is string && data.url.size() <= 1500000 // ~1.5MB for base64
+            && data.userId == request.auth.uid
+            && data.albumId is string
+            && (data.createdAt is number || data.createdAt is timestamp);
+      }
+
+      // The "Master Gate": Verify album ownership before photo creation
+      function userOwnsAlbum(albumId) {
+        return get(/databases/$(database)/documents/albums/$(albumId)).data.ownerId == request.auth.uid;
+      }
+
+      allow create: if isOwner(incoming().userId) 
+                   && isValidPhoto(incoming()) 
+                   && userOwnsAlbum(incoming().albumId);
+      
+      allow read: if isOwner(existing().userId);
+      
+      allow update: if isOwner(existing().userId)
+                   && isOwner(incoming().userId)
+                   && isValidPhoto(incoming())
+                   && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category'])
+                   && incoming().albumId == existing().albumId; // Immutable link to album
+      
+      allow delete: if isOwner(existing().userId);
+    }
+  }
+}

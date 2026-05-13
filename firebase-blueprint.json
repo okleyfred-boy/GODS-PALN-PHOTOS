@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "Album": {
+      "title": "Album",
+      "description": "An album containing a collection of photos.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The name of the album." },
+        "ownerId": { "type": "string", "description": "The UID of the user who owns the album." },
+        "createdAt": { "type": "number", "description": "Timestamp when the album was created." }
+      },
+      "required": ["title", "ownerId", "createdAt"]
+    },
+    "Photo": {
+      "title": "Photo",
+      "description": "A photo stored as a base64 string within an album.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The name of the photo." },
+        "description": { "type": "string", "description": "A description or story for the photo." },
+        "albumId": { "type": "string", "description": "The ID of the parent album." },
+        "userId": { "type": "string", "description": "The UID of the user who uploaded the photo." },
+        "url": { "type": "string", "description": "The base64 encoded image data." },
+        "category": { "type": "string", "description": "The category/section of the photo." },
+        "createdAt": { "type": "number", "description": "Timestamp when the photo was archived." }
+      },
+      "required": ["title", "albumId", "userId", "url", "createdAt"]
+    }
+  },
+  "firestore": {
+    "albums/{albumId}": {
+      "schema": "Album",
+      "description": "Collection of user albums."
+    },
+    "photos/{photoId}": {
+      "schema": "Photo",
+      "description": "Collection of photos within albums."
+    }
+  }
+}
