@@ -1,24 +1,34 @@
-# Security Specification
+# Security Specification - Aeterna Digital Archives
 
-## Data Invariants
-1. A Photo must have a valid `albumId` that corresponds to an Album owned by the user.
-2. `userId` and `ownerId` must always match the `request.auth.uid`.
-3. Image data (`url`) must be a string and constrained by size (handled by client compression, but rules should verify string length if possible, though base64 can be large).
-4. `createdAt` must be a server timestamp or valid number.
+## 1. Data Invariants
+- A photo MUST belong to an album owned by the same user.
+- Photos and Albums MUST have an ownerId/userId matching the authenticated user.
+- The `url` field must be reasonably sized (within Firestore document limits and rule limits).
+- Timestamps must be numbers or server timestamps.
 
-## The "Dirty Dozen" Payloads
-1. Create photo with someone else's `userId`.
-2. Create photo with an `albumId` belonging to another user.
-3. Update `url` of a photo one doesn't own.
-4. Update `ownerId` of an album to transfer ownership.
-5. Create an album where `ownerId` doesn't match `auth.uid`.
-6. List all photos across all users (blanket read).
-7. Delete an album one doesn't own.
-8. Inject a 2MB string into `title`.
-9. Update `createdAt` to a past date (spoofing).
-10. Update a photo's `albumId` to a different user's album.
-11. Read a photo one doesn't own.
-12. Create a photo with a non-string `url`.
+## 2. The "Dirty Dozen" Payloads
 
-## The Test Runner
-(Omitted for brevity in this env, but all writes/reads will be rejected unless invariants match).
+### Album Collection
+1. **Identity Spoofing**: Create album with someone else's `ownerId`.
+2. **Missing Fields**: Create album without `createdAt`.
+3. **Large Payload**: Create album with 1MB `title`.
+4. **Invalid ID**: Get album with ID `../sneaky`.
+
+### Photo Collection
+5. **Orphaned Photo**: Create photo with `albumId` that doesn't exist.
+6. **Cross-User Album**: Create photo in an album ID belonging to another user.
+7. **Identity Spoofing**: Create photo with someone else's `userId`.
+8. **Malicious Size**: Create photo with `url` exceeding 6MB (even if Firestore limit is lower).
+9. **State Shortcut**: Update `userId` to a different value.
+10. **Type Mismatch**: Send `createdAt` as a string instead of number.
+11. **Shadow Field**: Add `isAdmin: true` to a photo document.
+12. **Unauthorized List**: Query `photos` without a `userId` filter matching the auth.
+
+## 3. Conflict Report & Red Team Evaluation
+
+| Collection | Identity Spoofing | State Shortcutting | Resource Poisoning |
+| :--- | :--- | :--- | :--- |
+| albums | Blocked by isValidAlbum | Blocked by immutable ownerId | Blocked by size limit |
+| photos | Blocked by isValidPhoto | Blocked by immutable userId | Blocked by size limit |
+
+*Note: PII is not stored (emails/phone numbers), only UIDs.*
