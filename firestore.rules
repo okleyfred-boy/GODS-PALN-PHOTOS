@@ -8,25 +8,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
-
     function incoming() {
       return request.resource.data;
-    }
-    
-    function existing() {
-      return resource.data;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Default Deny (Pillar 0)
-    match /{document=**} {
-      allow read, write: if false;
     }
 
     // --- COLLECTIONS ---
@@ -39,22 +22,21 @@ service cloud.firestore {
             && (data.createdAt is number || data.createdAt is timestamp);
       }
 
-      // Secure List Queries (Pillar 8)
-      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+      // Secure List Queries
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       
-      // Path Variable Hardening (Pillar 3)
-      allow get: if isSignedIn() && isValidId(albumId) && existing().ownerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
 
       allow create: if isSignedIn() 
                    && isValidAlbum(incoming())
                    && incoming().keys().hasAll(['title', 'ownerId', 'createdAt']);
 
-      allow update: if isSignedIn() && isValidId(albumId) && existing().ownerId == request.auth.uid
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid
                    && isValidAlbum(incoming())
-                   && incoming().diff(existing()).affectedKeys().hasOnly(['title'])
-                   && incoming().ownerId == existing().ownerId;
+                   && incoming().diff(resource.data).affectedKeys().hasOnly(['title'])
+                   && incoming().ownerId == resource.data.ownerId;
 
-      allow delete: if isSignedIn() && isValidId(albumId) && existing().ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     // 2. PHOTOS
@@ -63,38 +45,42 @@ service cloud.firestore {
         return data.title is string && data.title.size() <= 200
             && data.description is string && data.description.size() <= 5000
             && data.category is string && data.category.size() <= 100
-            && data.url is string && data.url.size() <= 6000000 // Upped for reliability
+            && data.url is string && data.url.size() <= 6000000
             && data.userId == request.auth.uid
             && data.albumId is string
             && (data.createdAt is number || data.createdAt is timestamp);
       }
 
-      // Relational Sync / Master Gate (Pillar 1)
       function userOwnsAlbum(albumId) {
         return exists(/databases/$(database)/documents/albums/$(albumId)) && 
                get(/databases/$(database)/documents/albums/$(albumId)).data.ownerId == request.auth.uid;
       }
 
-      allow list: if isSignedIn() && existing().userId == request.auth.uid;
-      allow get: if isSignedIn() && isValidId(photoId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
 
       allow create: if isSignedIn() 
                    && isValidPhoto(incoming()) 
                    && userOwnsAlbum(incoming().albumId)
                    && incoming().keys().hasAll(['title', 'description', 'category', 'url', 'userId', 'albumId', 'createdAt']);
 
-      allow update: if isSignedIn() && isValidId(photoId) && existing().userId == request.auth.uid
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
                    && isValidPhoto(incoming())
-                   && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category'])
-                   && incoming().userId == existing().userId
-                   && incoming().albumId == existing().albumId;
+                   && incoming().diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'category'])
+                   && incoming().userId == resource.data.userId
+                   && incoming().albumId == resource.data.albumId;
 
-      allow delete: if isSignedIn() && isValidId(photoId) && existing().userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // --- SYSTEM ---
     match /test/connection {
       allow read: if true;
+    }
+
+    // Default Deny (Pillar 0) - Moved to bottom for safety
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
