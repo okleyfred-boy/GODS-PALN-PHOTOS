@@ -179,13 +179,21 @@ export default function App() {
             
             <button
               onClick={handleToggleUpload}
-              className={`group flex items-center justify-center w-12 h-12 bg-sophisticated-gray border border-sophisticated-border rounded-full transition-all transform hover:rotate-90 shadow-2xl ${
-                isAuthenticated ? 'hover:bg-gold hover:text-sophisticated-black hover:border-gold' : 'opacity-50 cursor-not-allowed'
+              className={`group flex items-center justify-center w-12 h-12 rounded-full transition-all transform hover:rotate-90 shadow-2xl relative ${
+                isAuthenticated 
+                  ? 'bg-gold border border-gold text-sophisticated-black hover:brightness-110' 
+                  : 'bg-sophisticated-gray border border-sophisticated-border text-sophisticated-text/20 hover:border-gold/30'
               }`}
-              title={isAuthenticated ? 'Capture Moment' : 'Authentication Required'}
+              title={isAuthenticated ? 'Capture Moment' : 'Sign in to Archive'}
             >
-              {isAuthenticated ? <Plus size={18} /> : <Lock size={16} className="text-sophisticated-text/20" />}
+              {isAuthenticated ? <Plus size={18} /> : <Lock size={16} />}
+              {!isAuthenticated && (
+                <div className="absolute -top-12 right-0 bg-sophisticated-black border border-gold/30 px-3 py-1.5 rounded-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <p className="text-[8px] uppercase tracking-widest text-gold font-bold">Sign in required</p>
+                </div>
+              )}
             </button>
+
           </div>
         </div>
 

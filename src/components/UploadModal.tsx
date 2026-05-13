@@ -14,16 +14,24 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Moments');
   const [preview, setPreview] = useState<string | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log('File input change detected', file ? `File: ${file.name}` : 'No file selected');
     if (file) {
+      setIsPreviewLoading(true);
       const reader = new FileReader();
       reader.onloadend = () => {
+        console.log('File read as DataURL completed');
         setPreview(reader.result as string);
-        setIsConfirming(false);
+        setIsPreviewLoading(false);
+      };
+      reader.onerror = (err) => {
+        console.error('File reading error:', err);
+        setIsPreviewLoading(false);
       };
       reader.readAsDataURL(file);
     }
@@ -31,30 +39,34 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!preview || !title) return;
+    if (!preview || !title || isSaving) return;
 
-    if (!isConfirming) {
-      setIsConfirming(true);
-      return;
+    setIsSaving(true);
+    try {
+      await db.photos.add({
+        title,
+        description,
+        category,
+        dataUrl: preview,
+        createdAt: Date.now(),
+      });
+      console.log('Successfully archived new element');
+      
+      // Reset and close
+      setTitle('');
+      setDescription('');
+      setCategory('Moments');
+      setPreview(null);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to add to database:', err);
+      alert('Failed to archive. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-
-    await db.photos.add({
-      title,
-      description,
-      category,
-      dataUrl: preview,
-      createdAt: Date.now(),
-    });
-
-    // Reset and close
-    setTitle('');
-    setDescription('');
-    setCategory('Moments');
-    setPreview(null);
-    setIsConfirming(false);
-    onSuccess();
-    onClose();
   };
+
 
   return (
     <AnimatePresence>
@@ -64,10 +76,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sophisticated-black/80 backdrop-blur-md"
-          onClick={() => {
-            setIsConfirming(false);
-            onClose();
-          }}
+          onClick={onClose}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -79,10 +88,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-gold/40 to-transparent"></div>
             
             <button
-              onClick={() => {
-                setIsConfirming(false);
-                onClose();
-              }}
+              onClick={onClose}
               className="absolute top-8 right-8 text-sophisticated-text/20 hover:text-gold transition-colors"
             >
               <X size={20} />
@@ -95,7 +101,10 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
             <form onSubmit={handleSubmit} className="space-y-8">
               <div 
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  console.log('File selection triggered');
+                  fileInputRef.current?.click();
+                }}
                 className="group relative aspect-video bg-sophisticated-gray/50 border border-sophisticated-border rounded-sm flex flex-col items-center justify-center cursor-pointer hover:border-gold/30 hover:bg-gold/[0.03] transition-all overflow-hidden"
               >
                 {preview ? (
@@ -105,11 +114,12 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                     <div className="w-14 h-14 rounded-full bg-sophisticated-black border border-sophisticated-border flex items-center justify-center mb-4 group-hover:border-gold group-hover:scale-105 transition-all shadow-xl">
                       <Camera size={20} className="text-gold/60 group-hover:text-gold transition-colors" />
                     </div>
-                    <span className="text-[10px] uppercase tracking-[0.4em] text-sophisticated-text/20 font-bold italic">Select Negative</span>
+                    <span className="text-[10px] uppercase tracking-[0.4em] text-sophisticated-text/20 font-bold italic">Select Image</span>
                   </>
                 )}
                 <input
                   type="file"
+                  id="image-upload-input"
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   accept="image/*"
@@ -119,27 +129,21 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 font-bold block ml-1">Label</label>
+                  <label className="text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 font-bold block ml-1">Title</label>
                   <input
                     type="text"
                     required
                     value={title}
-                    onChange={(e) => {
-                      setTitle(e.target.value);
-                      setIsConfirming(false);
-                    }}
+                    onChange={(e) => setTitle(e.target.value)}
                     className="w-full bg-sophisticated-gray/30 border border-sophisticated-border p-4 text-xs tracking-wider text-sophisticated-text focus:outline-none focus:border-gold/50 transition-colors placeholder:opacity-10"
-                    placeholder="Reference..."
+                    placeholder="Capture title..."
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 font-bold block ml-1">Section</label>
+                  <label className="text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 font-bold block ml-1">Category</label>
                   <select
                     value={category}
-                    onChange={(e) => {
-                      setCategory(e.target.value);
-                      setIsConfirming(false);
-                    }}
+                    onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-sophisticated-gray/30 border border-sophisticated-border p-4 text-xs tracking-wider text-sophisticated-text focus:outline-none focus:border-gold/50 transition-colors appearance-none cursor-pointer"
                   >
                     <option>Moments</option>
@@ -152,33 +156,38 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
               </div>
 
               <div className="space-y-2">
-                <label className="text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 font-bold block ml-1">Narration</label>
+                <label className="text-[9px] uppercase tracking-[0.3em] text-sophisticated-text/30 font-bold block ml-1">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    setIsConfirming(false);
-                  }}
+                  onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-sophisticated-gray/30 border border-sophisticated-border p-4 text-xs tracking-wider text-sophisticated-text focus:outline-none focus:border-gold/50 transition-colors resize-none h-28 placeholder:opacity-10"
-                  placeholder="The story behind the lens..."
+                  placeholder="Tell the story..."
                 />
               </div>
 
+
               <button
                 type="submit"
-                disabled={!preview || !title}
-                className={`w-full py-5 text-[11px] uppercase tracking-[0.4em] font-black transition-all shadow-[0_10px_30px_-10px_rgba(197,160,89,0.3)] mt-4 ${
-                  isConfirming 
-                    ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
-                    : 'bg-gold text-sophisticated-black hover:brightness-110'
-                } disabled:opacity-20 disabled:cursor-not-allowed`}
+                disabled={!preview || !title || isSaving}
+                className="w-full py-5 text-[11px] uppercase tracking-[0.4em] font-black transition-all shadow-[0_10px_30px_-10px_rgba(197,160,89,0.3)] mt-4 bg-gold text-sophisticated-black hover:brightness-110 disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               >
-                {isConfirming ? 'Confirm Archive?' : 'Commit to Archives'}
+                {isSaving ? (
+                  <>
+                    <div className="w-1.5 h-1.5 bg-sophisticated-black rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-sophisticated-black rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                    <div className="w-1.5 h-1.5 bg-sophisticated-black rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                    <span className="ml-2">Archiving...</span>
+                  </>
+                ) : (
+                  'Commit to Archives'
+                )}
               </button>
+
             </form>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+
   );
 }
